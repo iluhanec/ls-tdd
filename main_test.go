@@ -2,11 +2,9 @@ package main
 
 import "testing"
 
-func TestHello(t *testing.T) {
-	want := "Hello, World!"
-	got := Hello()
-
-	if got != want {
-		t.Errorf("Hello() = %q; want %q", got, want)
-	}
+func TestLsCommandExists(_ *testing.T) {
+	// Test that ls command exists and can be invoked
+	// This is the simplest possible test - just verify the function exists
+	ls()
+	// If we get here without panic, the command exists and can be invoked
 }
