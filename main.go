@@ -1,12 +1,10 @@
-// Package main provides a simple Go starter application.
+// Package main provides a minimal ls utility implementation.
 package main
 
-import "fmt"
-
-func Hello() string {
-	return "Hello, World!"
+func ls() {
+	// Empty implementation - command exists and can be invoked
 }
 
 func main() {
-	fmt.Println(Hello())
+	ls()
 }
