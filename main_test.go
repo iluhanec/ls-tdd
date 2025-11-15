@@ -50,7 +50,7 @@ func runLsInTempDir(t *testing.T, tmpDir string) string {
 	}
 	os.Stdout = w
 
-	ls()
+	ls(".")
 
 	if err := w.Close(); err != nil {
 		t.Fatalf("failed to close write pipe: %v", err)
@@ -150,6 +150,79 @@ func TestLsSortsOutputAlphabetically(t *testing.T) {
 		actualName := string(lines[i])
 		if actualName != expectedName {
 			t.Errorf("file at position %d should be %q, got %q. Full output: %q", i, expectedName, actualName, output)
+		}
+	}
+}
+
+func TestLsAcceptsDirectoryArgument(t *testing.T) {
+	// Test that ls <directory> lists files in specified directory
+	// Create a temporary directory structure
+	tmpDir := t.TempDir()
+
+	// Create files in the parent directory (current directory during test)
+	parentFiles := []string{"parent_file1.txt", "parent_file2.txt"}
+	createTestFiles(t, tmpDir, parentFiles)
+
+	// Create a subdirectory with its own files
+	subDir := filepath.Join(tmpDir, "subdir")
+	if err := os.Mkdir(subDir, 0750); err != nil {
+		t.Fatalf("failed to create subdirectory: %v", err)
+	}
+	subDirFiles := []string{"subfile1.txt", "subfile2.txt"}
+	createTestFiles(t, subDir, subDirFiles)
+
+	// Save current working directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldDir); err != nil {
+			t.Fatalf("failed to restore directory: %v", err)
+		}
+	}()
+
+	// Change to tmpDir (parent of subDir)
+	// This ensures that if ls() incorrectly reads the current directory instead of subDir,
+	// it will find parentFiles instead of subDirFiles
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change to tmp directory: %v", err)
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	os.Stdout = w
+
+	// Call ls with subdirectory argument
+	ls(subDir)
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("failed to close write pipe: %v", err)
+	}
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatalf("failed to read from pipe: %v", err)
+	}
+	output := buf.String()
+
+	// Verify output contains files from the specified subdirectory
+	for _, fileName := range subDirFiles {
+		if !bytes.Contains([]byte(output), []byte(fileName)) {
+			t.Errorf("ls() should list file %q from directory %q, got output: %q", fileName, subDir, output)
+		}
+	}
+
+	// Verify output does NOT contain files from current directory (tmpDir)
+	// This proves we're reading the specified directory, not the current directory
+	for _, fileName := range parentFiles {
+		if bytes.Contains([]byte(output), []byte(fileName)) {
+			t.Errorf("ls() should NOT list file %q from current directory %q, but it was found in output: %q. This indicates ls() is reading the wrong directory.", fileName, tmpDir, output)
 		}
 	}
 }

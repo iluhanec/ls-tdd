@@ -7,9 +7,14 @@ import (
 	"sort"
 )
 
-func ls() {
-	// Read current directory, print all non-hidden files
-	entries, err := os.ReadDir(".")
+func ls(dir string) {
+	// Use current directory if no directory specified
+	if dir == "" {
+		dir = "."
+	}
+
+	// Read specified directory, print all non-hidden files
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return // For now, silently fail if directory can't be read
 	}
@@ -34,5 +39,10 @@ func ls() {
 }
 
 func main() {
-	ls()
+	// Parse command-line arguments
+	dir := "."
+	if len(os.Args) > 1 {
+		dir = os.Args[1]
+	}
+	ls(dir)
 }
