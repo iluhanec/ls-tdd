@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -174,7 +175,13 @@ func runLsWithErrorCapture(t *testing.T, workDir string, lsDir string) (stdout s
 	}
 	os.Stderr = stderrW
 
-	_ = ls(lsDir)
+	fileNames, err := ls(lsDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ls: cannot access '%s': %v\n", lsDir, err)
+	} else {
+		formatted := format(fileNames)
+		printFiles(formatted)
+	}
 
 	if err := stdoutW.Close(); err != nil {
 		t.Fatalf("failed to close stdout write pipe: %v", err)
