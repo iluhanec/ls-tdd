@@ -47,11 +47,28 @@ func printFiles(fileNames []string) {
 	}
 }
 
-func main() {
-	dir := "."
-	if len(os.Args) > 1 {
-		dir = os.Args[1]
+// parseArgs parses command-line arguments and returns the long format flag and directory.
+func parseArgs(args []string) (longFormat bool, dir string) {
+	longFormat = false
+	dir = "."
+
+	for i := 1; i < len(args); i++ {
+		arg := args[i]
+		if arg == "-l" {
+			longFormat = true
+		} else if arg[0] != '-' {
+			// First non-flag argument is the directory
+			dir = arg
+			break
+		}
 	}
+
+	return longFormat, dir
+}
+
+func main() {
+	longFormat, dir := parseArgs(os.Args)
+	_ = longFormat // Will be used in later steps for formatting
 
 	fileNames, err := ls(dir)
 	if err != nil {

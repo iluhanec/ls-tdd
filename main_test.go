@@ -224,3 +224,44 @@ func TestLsHandlesInvalidDirectory(t *testing.T) {
 		t.Errorf("ls() should not print anything to stdout for invalid directory, got: %q", stdout)
 	}
 }
+
+func TestLsParsesLongFormatFlag(t *testing.T) {
+	t.Run("flag only", func(t *testing.T) {
+		args := []string{"ls", "-l"}
+		longFormat, dir := parseArgs(args)
+
+		if !longFormat {
+			t.Error("parseArgs() should detect -l flag and set longFormat to true")
+		}
+
+		if dir != "." {
+			t.Errorf("parseArgs() should default directory to '.' when only flag is provided, got: %q", dir)
+		}
+	})
+
+	t.Run("flag with directory", func(t *testing.T) {
+		args := []string{"ls", "-l", "/some/dir"}
+		longFormat, dir := parseArgs(args)
+
+		if !longFormat {
+			t.Error("parseArgs() should detect -l flag and set longFormat to true")
+		}
+
+		if dir != "/some/dir" {
+			t.Errorf("parseArgs() should parse directory argument, got: %q", dir)
+		}
+	})
+
+	t.Run("no flag", func(t *testing.T) {
+		args := []string{"ls", "/some/dir"}
+		longFormat, dir := parseArgs(args)
+
+		if longFormat {
+			t.Error("parseArgs() should not set longFormat when -l flag is not provided")
+		}
+
+		if dir != "/some/dir" {
+			t.Errorf("parseArgs() should parse directory argument, got: %q", dir)
+		}
+	})
+}
