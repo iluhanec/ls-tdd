@@ -1,11 +1,20 @@
 // Package main provides a minimal ls utility implementation.
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 func ls() {
-	// Print a single string - basic output mechanism
-	fmt.Println("placeholder")
+	// Read current directory, print first file name
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		return // For now, silently fail if directory can't be read
+	}
+	if len(entries) > 0 {
+		fmt.Println(entries[0].Name())
+	}
 }
 
 func main() {
