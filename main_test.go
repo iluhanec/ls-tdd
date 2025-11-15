@@ -25,44 +25,8 @@ func createTestFiles(t *testing.T, tmpDir string, fileNames []string) {
 // If lsDir is empty, it defaults to ".".
 func runLsInTempDir(t *testing.T, workDir string, lsDir string) string {
 	t.Helper()
-
-	if lsDir == "" {
-		lsDir = "."
-	}
-
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get current directory: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(oldDir); err != nil {
-			t.Fatalf("failed to restore directory: %v", err)
-		}
-	}()
-
-	if err := os.Chdir(workDir); err != nil {
-		t.Fatalf("failed to change to work directory: %v", err)
-	}
-
-	oldStdout := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("failed to create pipe: %v", err)
-	}
-	os.Stdout = w
-
-	_ = ls(lsDir)
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("failed to close write pipe: %v", err)
-	}
-	os.Stdout = oldStdout
-
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(r); err != nil {
-		t.Fatalf("failed to read from pipe: %v", err)
-	}
-	return buf.String()
+	stdout, _ := runLsWithErrorCapture(t, workDir, lsDir)
+	return stdout
 }
 
 func TestLsListsAtLeastOneFile(t *testing.T) {
@@ -167,6 +131,23 @@ func TestLsAcceptsDirectoryArgument(t *testing.T) {
 	}
 }
 
+// changeToWorkDir changes to workDir and returns a cleanup function to restore the original directory.
+func changeToWorkDir(t *testing.T, workDir string) func() {
+	t.Helper()
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("failed to change to work directory: %v", err)
+	}
+	return func() {
+		if err := os.Chdir(oldDir); err != nil {
+			t.Fatalf("failed to restore directory: %v", err)
+		}
+	}
+}
+
 // runLsWithErrorCapture captures both stdout and stderr, runs ls(lsDir), and returns both outputs.
 func runLsWithErrorCapture(t *testing.T, workDir string, lsDir string) (stdout string, stderr string) {
 	t.Helper()
@@ -175,19 +156,8 @@ func runLsWithErrorCapture(t *testing.T, workDir string, lsDir string) (stdout s
 		lsDir = "."
 	}
 
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get current directory: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(oldDir); err != nil {
-			t.Fatalf("failed to restore directory: %v", err)
-		}
-	}()
-
-	if err := os.Chdir(workDir); err != nil {
-		t.Fatalf("failed to change to work directory: %v", err)
-	}
+	restoreDir := changeToWorkDir(t, workDir)
+	defer restoreDir()
 
 	oldStdout := os.Stdout
 	oldStderr := os.Stderr
