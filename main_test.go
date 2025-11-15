@@ -51,7 +51,7 @@ func runLsInTempDir(t *testing.T, workDir string, lsDir string) string {
 	}
 	os.Stdout = w
 
-	ls(lsDir)
+	_ = ls(lsDir)
 
 	if err := w.Close(); err != nil {
 		t.Fatalf("failed to close write pipe: %v", err)
@@ -164,5 +164,86 @@ func TestLsAcceptsDirectoryArgument(t *testing.T) {
 		if bytes.Contains([]byte(output), []byte(fileName)) {
 			t.Errorf("ls() should NOT list file %q from current directory %q, but it was found in output: %q. This indicates ls() is reading the wrong directory.", fileName, tmpDir, output)
 		}
+	}
+}
+
+// runLsWithErrorCapture captures both stdout and stderr, runs ls(lsDir), and returns both outputs.
+func runLsWithErrorCapture(t *testing.T, workDir string, lsDir string) (stdout string, stderr string) {
+	t.Helper()
+
+	if lsDir == "" {
+		lsDir = "."
+	}
+
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldDir); err != nil {
+			t.Fatalf("failed to restore directory: %v", err)
+		}
+	}()
+
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("failed to change to work directory: %v", err)
+	}
+
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+
+	stdoutR, stdoutW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stdout pipe: %v", err)
+	}
+	os.Stdout = stdoutW
+
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stderr pipe: %v", err)
+	}
+	os.Stderr = stderrW
+
+	_ = ls(lsDir)
+
+	if err := stdoutW.Close(); err != nil {
+		t.Fatalf("failed to close stdout write pipe: %v", err)
+	}
+	if err := stderrW.Close(); err != nil {
+		t.Fatalf("failed to close stderr write pipe: %v", err)
+	}
+
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	var stdoutBuf bytes.Buffer
+	if _, err := stdoutBuf.ReadFrom(stdoutR); err != nil {
+		t.Fatalf("failed to read from stdout pipe: %v", err)
+	}
+
+	var stderrBuf bytes.Buffer
+	if _, err := stderrBuf.ReadFrom(stderrR); err != nil {
+		t.Fatalf("failed to read from stderr pipe: %v", err)
+	}
+
+	return stdoutBuf.String(), stderrBuf.String()
+}
+
+func TestLsHandlesInvalidDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	invalidPath := filepath.Join(tmpDir, "nonexistent_directory")
+
+	stdout, stderr := runLsWithErrorCapture(t, tmpDir, invalidPath)
+
+	if stderr == "" {
+		t.Error("ls() should print an error message to stderr for invalid directory, got empty stderr")
+	}
+
+	if !bytes.Contains([]byte(stderr), []byte("nonexistent_directory")) {
+		t.Errorf("ls() error message should mention the invalid path, got stderr: %q", stderr)
+	}
+
+	if stdout != "" {
+		t.Errorf("ls() should not print anything to stdout for invalid directory, got: %q", stdout)
 	}
 }
