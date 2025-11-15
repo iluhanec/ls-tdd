@@ -3,18 +3,44 @@ package main
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
-func TestLsCommandExists(_ *testing.T) {
-	// Test that ls command exists and can be invoked
-	// This is the simplest possible test - just verify the function exists
-	ls()
-	// If we get here without panic, the command exists and can be invoked
-}
+func TestLsListsAtLeastOneFile(t *testing.T) {
+	// Test that ls lists at least one file from current directory
+	// Create a temporary directory with a known test file
+	tmpDir := t.TempDir()
+	testFileName := "testfile.txt"
+	testFilePath := filepath.Join(tmpDir, testFileName)
+	// clean the file path to avoid any
+	// potential security issues with path traversal
+	testFilePath = filepath.Clean(testFilePath)
 
-func TestLsOutputsSomething(t *testing.T) {
-	// Test that ls outputs something (even if just a placeholder)
+	// Create a test file in the temporary directory
+	testFile, err := os.Create(testFilePath)
+	if err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+	if err := testFile.Close(); err != nil {
+		t.Fatalf("failed to close test file: %v", err)
+	}
+
+	// Save current working directory and change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldDir); err != nil {
+			t.Fatalf("failed to restore directory: %v", err)
+		}
+	}()
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+
 	// Capture stdout
 	oldStdout := os.Stdout
 	r, w, err := os.Pipe()
@@ -36,7 +62,15 @@ func TestLsOutputsSomething(t *testing.T) {
 	}
 	output := buf.String()
 
+	// Verify output contains the test file name
 	if output == "" {
-		t.Error("ls() should output something, got empty string")
+		t.Error("ls() should list at least one file, got empty output")
+	}
+	if output == "placeholder\n" {
+		t.Error("ls() should list actual files, not placeholder")
+	}
+	// Check that the output contains our test file name
+	if !bytes.Contains([]byte(output), []byte(testFileName)) {
+		t.Errorf("ls() should list the test file %q, got output: %q", testFileName, output)
 	}
 }
