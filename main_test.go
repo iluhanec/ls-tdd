@@ -7,24 +7,25 @@ import (
 	"testing"
 )
 
-func TestLsListsAtLeastOneFile(t *testing.T) {
-	// Test that ls lists at least one file from current directory
-	// Create a temporary directory with a known test file
-	tmpDir := t.TempDir()
-	testFileName := "testfile.txt"
-	testFilePath := filepath.Join(tmpDir, testFileName)
-	// clean the file path to avoid any
-	// potential security issues with path traversal
-	testFilePath = filepath.Clean(testFilePath)
+// createTestFiles creates test files in the specified directory.
+func createTestFiles(t *testing.T, tmpDir string, fileNames []string) {
+	t.Helper()
+	for _, fileName := range fileNames {
+		testFilePath := filepath.Clean(filepath.Join(tmpDir, fileName))
+		testFile, err := os.Create(testFilePath)
+		if err != nil {
+			t.Fatalf("failed to create test file %s: %v", fileName, err)
+		}
+		if err := testFile.Close(); err != nil {
+			t.Fatalf("failed to close test file %s: %v", fileName, err)
+		}
+	}
+}
 
-	// Create a test file in the temporary directory
-	testFile, err := os.Create(testFilePath)
-	if err != nil {
-		t.Fatalf("failed to create test file: %v", err)
-	}
-	if err := testFile.Close(); err != nil {
-		t.Fatalf("failed to close test file: %v", err)
-	}
+// runLsInTempDir changes to the temp directory, captures stdout, runs ls(), and returns the output.
+// It restores the original directory and stdout before returning.
+func runLsInTempDir(t *testing.T, tmpDir string) string {
+	t.Helper()
 
 	// Save current working directory and change to temp directory
 	oldDir, err := os.Getwd()
@@ -60,7 +61,16 @@ func TestLsListsAtLeastOneFile(t *testing.T) {
 	if _, err := buf.ReadFrom(r); err != nil {
 		t.Fatalf("failed to read from pipe: %v", err)
 	}
-	output := buf.String()
+	return buf.String()
+}
+
+func TestLsListsAtLeastOneFile(t *testing.T) {
+	// Test that ls lists at least one file from current directory
+	tmpDir := t.TempDir()
+	testFileName := "testfile.txt"
+	createTestFiles(t, tmpDir, []string{testFileName})
+
+	output := runLsInTempDir(t, tmpDir)
 
 	// Verify output contains the test file name
 	if output == "" {
@@ -77,70 +87,17 @@ func TestLsListsAtLeastOneFile(t *testing.T) {
 
 func TestLsListsAllNonHiddenFiles(t *testing.T) {
 	// Test that ls lists all non-hidden files in current directory
-	// Create a temporary directory with multiple files (some hidden, some not)
 	tmpDir := t.TempDir()
 
 	// Create non-hidden files
 	nonHiddenFiles := []string{"file1.txt", "file2.txt", "file3.go"}
-	for _, fileName := range nonHiddenFiles {
-		testFilePath := filepath.Clean(filepath.Join(tmpDir, fileName))
-		testFile, err := os.Create(testFilePath)
-		if err != nil {
-			t.Fatalf("failed to create test file %s: %v", fileName, err)
-		}
-		if err := testFile.Close(); err != nil {
-			t.Fatalf("failed to close test file %s: %v", fileName, err)
-		}
-	}
+	createTestFiles(t, tmpDir, nonHiddenFiles)
 
 	// Create hidden files (should NOT be listed)
 	hiddenFiles := []string{".hidden1", ".hidden2"}
-	for _, fileName := range hiddenFiles {
-		testFilePath := filepath.Clean(filepath.Join(tmpDir, fileName))
-		testFile, err := os.Create(testFilePath)
-		if err != nil {
-			t.Fatalf("failed to create hidden file %s: %v", fileName, err)
-		}
-		if err := testFile.Close(); err != nil {
-			t.Fatalf("failed to close hidden file %s: %v", fileName, err)
-		}
-	}
+	createTestFiles(t, tmpDir, hiddenFiles)
 
-	// Save current working directory and change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get current directory: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(oldDir); err != nil {
-			t.Fatalf("failed to restore directory: %v", err)
-		}
-	}()
-
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change to temp directory: %v", err)
-	}
-
-	// Capture stdout
-	oldStdout := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("failed to create pipe: %v", err)
-	}
-	os.Stdout = w
-
-	ls()
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("failed to close write pipe: %v", err)
-	}
-	os.Stdout = oldStdout
-
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(r); err != nil {
-		t.Fatalf("failed to read from pipe: %v", err)
-	}
-	output := buf.String()
+	output := runLsInTempDir(t, tmpDir)
 
 	// Verify all non-hidden files are listed
 	for _, fileName := range nonHiddenFiles {
@@ -164,57 +121,13 @@ func TestLsListsAllNonHiddenFiles(t *testing.T) {
 
 func TestLsSortsOutputAlphabetically(t *testing.T) {
 	// Test that files are listed in alphabetical order
-	// Create a temporary directory with files in non-alphabetical order
 	tmpDir := t.TempDir()
 
 	// Create files in intentionally non-alphabetical order
 	files := []string{"zebra.txt", "apple.txt", "banana.txt", "dog.txt"}
-	for _, fileName := range files {
-		testFilePath := filepath.Clean(filepath.Join(tmpDir, fileName))
-		testFile, err := os.Create(testFilePath)
-		if err != nil {
-			t.Fatalf("failed to create test file %s: %v", fileName, err)
-		}
-		if err := testFile.Close(); err != nil {
-			t.Fatalf("failed to close test file %s: %v", fileName, err)
-		}
-	}
+	createTestFiles(t, tmpDir, files)
 
-	// Save current working directory and change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get current directory: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(oldDir); err != nil {
-			t.Fatalf("failed to restore directory: %v", err)
-		}
-	}()
-
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change to temp directory: %v", err)
-	}
-
-	// Capture stdout
-	oldStdout := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("failed to create pipe: %v", err)
-	}
-	os.Stdout = w
-
-	ls()
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("failed to close write pipe: %v", err)
-	}
-	os.Stdout = oldStdout
-
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(r); err != nil {
-		t.Fatalf("failed to read from pipe: %v", err)
-	}
-	output := buf.String()
+	output := runLsInTempDir(t, tmpDir)
 
 	// Split output into lines and remove trailing newline
 	lines := bytes.Split(bytes.TrimSpace([]byte(output)), []byte("\n"))
