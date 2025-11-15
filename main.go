@@ -8,38 +8,33 @@ import (
 )
 
 func ls(dir string) {
-	// Use current directory if no directory specified
 	if dir == "" {
 		dir = "."
 	}
 
-	// Read specified directory, print all non-hidden files
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return // For now, silently fail if directory can't be read
+		return
 	}
 
-	// Collect non-hidden file names
 	var fileNames []string
 	for _, entry := range entries {
-		// Skip hidden files (files starting with .)
 		name := entry.Name()
 		if len(name) > 0 && name[0] != '.' {
 			fileNames = append(fileNames, name)
 		}
 	}
 
-	// Sort file names alphabetically (C locale: case-sensitive ASCII order)
+	// C locale: case-sensitive ASCII order (e.g., LICENSE, Makefile, README.md, go-starter, go.mod, main.go)
+	// This differs from UTF-8 locale-aware sorting which is case-insensitive (e.g., go-starter, go.mod, LICENSE, main.go, Makefile, README.md)
 	sort.Strings(fileNames)
 
-	// Print sorted file names
 	for _, name := range fileNames {
 		fmt.Println(name)
 	}
 }
 
 func main() {
-	// Parse command-line arguments
 	dir := "."
 	if len(os.Args) > 1 {
 		dir = os.Args[1]
