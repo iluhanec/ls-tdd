@@ -74,3 +74,90 @@ func TestLsListsAtLeastOneFile(t *testing.T) {
 		t.Errorf("ls() should list the test file %q, got output: %q", testFileName, output)
 	}
 }
+
+func TestLsListsAllNonHiddenFiles(t *testing.T) {
+	// Test that ls lists all non-hidden files in current directory
+	// Create a temporary directory with multiple files (some hidden, some not)
+	tmpDir := t.TempDir()
+
+	// Create non-hidden files
+	nonHiddenFiles := []string{"file1.txt", "file2.txt", "file3.go"}
+	for _, fileName := range nonHiddenFiles {
+		testFilePath := filepath.Clean(filepath.Join(tmpDir, fileName))
+		testFile, err := os.Create(testFilePath)
+		if err != nil {
+			t.Fatalf("failed to create test file %s: %v", fileName, err)
+		}
+		if err := testFile.Close(); err != nil {
+			t.Fatalf("failed to close test file %s: %v", fileName, err)
+		}
+	}
+
+	// Create hidden files (should NOT be listed)
+	hiddenFiles := []string{".hidden1", ".hidden2"}
+	for _, fileName := range hiddenFiles {
+		testFilePath := filepath.Clean(filepath.Join(tmpDir, fileName))
+		testFile, err := os.Create(testFilePath)
+		if err != nil {
+			t.Fatalf("failed to create hidden file %s: %v", fileName, err)
+		}
+		if err := testFile.Close(); err != nil {
+			t.Fatalf("failed to close hidden file %s: %v", fileName, err)
+		}
+	}
+
+	// Save current working directory and change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldDir); err != nil {
+			t.Fatalf("failed to restore directory: %v", err)
+		}
+	}()
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	os.Stdout = w
+
+	ls()
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("failed to close write pipe: %v", err)
+	}
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatalf("failed to read from pipe: %v", err)
+	}
+	output := buf.String()
+
+	// Verify all non-hidden files are listed
+	for _, fileName := range nonHiddenFiles {
+		if !bytes.Contains([]byte(output), []byte(fileName)) {
+			t.Errorf("ls() should list non-hidden file %q, got output: %q", fileName, output)
+		}
+	}
+
+	// Verify hidden files are NOT listed
+	for _, fileName := range hiddenFiles {
+		if bytes.Contains([]byte(output), []byte(fileName)) {
+			t.Errorf("ls() should NOT list hidden file %q, but it was found in output: %q", fileName, output)
+		}
+	}
+
+	// Verify we have output (at least one file listed)
+	if output == "" {
+		t.Error("ls() should list at least one file, got empty output")
+	}
+}
