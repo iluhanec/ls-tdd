@@ -7,14 +7,15 @@ import (
 	"sort"
 )
 
-func ls(dir string) {
+func ls(dir string) error {
 	if dir == "" {
 		dir = "."
 	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return
+		fmt.Fprintf(os.Stderr, "ls: cannot access '%s': %v\n", dir, err)
+		return err
 	}
 
 	var fileNames []string
@@ -32,6 +33,7 @@ func ls(dir string) {
 	for _, name := range fileNames {
 		fmt.Println(name)
 	}
+	return nil
 }
 
 func main() {
@@ -39,5 +41,7 @@ func main() {
 	if len(os.Args) > 1 {
 		dir = os.Args[1]
 	}
-	ls(dir)
+	if err := ls(dir); err != nil {
+		os.Exit(1)
+	}
 }
