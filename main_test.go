@@ -22,12 +22,18 @@ func createTestFiles(t *testing.T, tmpDir string, fileNames []string) {
 	}
 }
 
-// runLsInTempDir changes to the temp directory, captures stdout, runs ls(), and returns the output.
+// runLsInTempDir changes to the workDir, captures stdout, runs ls(lsDir), and returns the output.
+// If lsDir is empty, it defaults to "." (current directory).
 // It restores the original directory and stdout before returning.
-func runLsInTempDir(t *testing.T, tmpDir string) string {
+func runLsInTempDir(t *testing.T, workDir string, lsDir string) string {
 	t.Helper()
 
-	// Save current working directory and change to temp directory
+	// Default lsDir to "." if not specified
+	if lsDir == "" {
+		lsDir = "."
+	}
+
+	// Save current working directory and change to workDir
 	oldDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current directory: %v", err)
@@ -38,8 +44,8 @@ func runLsInTempDir(t *testing.T, tmpDir string) string {
 		}
 	}()
 
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change to temp directory: %v", err)
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("failed to change to work directory: %v", err)
 	}
 
 	// Capture stdout
@@ -50,7 +56,7 @@ func runLsInTempDir(t *testing.T, tmpDir string) string {
 	}
 	os.Stdout = w
 
-	ls(".")
+	ls(lsDir)
 
 	if err := w.Close(); err != nil {
 		t.Fatalf("failed to close write pipe: %v", err)
@@ -70,7 +76,7 @@ func TestLsListsAtLeastOneFile(t *testing.T) {
 	testFileName := "testfile.txt"
 	createTestFiles(t, tmpDir, []string{testFileName})
 
-	output := runLsInTempDir(t, tmpDir)
+	output := runLsInTempDir(t, tmpDir, "")
 
 	// Verify output contains the test file name
 	if output == "" {
@@ -97,7 +103,7 @@ func TestLsListsAllNonHiddenFiles(t *testing.T) {
 	hiddenFiles := []string{".hidden1", ".hidden2"}
 	createTestFiles(t, tmpDir, hiddenFiles)
 
-	output := runLsInTempDir(t, tmpDir)
+	output := runLsInTempDir(t, tmpDir, "")
 
 	// Verify all non-hidden files are listed
 	for _, fileName := range nonHiddenFiles {
@@ -127,7 +133,7 @@ func TestLsSortsOutputAlphabetically(t *testing.T) {
 	files := []string{"zebra.txt", "apple.txt", "banana.txt", "dog.txt"}
 	createTestFiles(t, tmpDir, files)
 
-	output := runLsInTempDir(t, tmpDir)
+	output := runLsInTempDir(t, tmpDir, "")
 
 	// Split output into lines and remove trailing newline
 	lines := bytes.Split(bytes.TrimSpace([]byte(output)), []byte("\n"))
@@ -171,45 +177,10 @@ func TestLsAcceptsDirectoryArgument(t *testing.T) {
 	subDirFiles := []string{"subfile1.txt", "subfile2.txt"}
 	createTestFiles(t, subDir, subDirFiles)
 
-	// Save current working directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get current directory: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(oldDir); err != nil {
-			t.Fatalf("failed to restore directory: %v", err)
-		}
-	}()
-
-	// Change to tmpDir (parent of subDir)
-	// This ensures that if ls() incorrectly reads the current directory instead of subDir,
-	// it will find parentFiles instead of subDirFiles
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change to tmp directory: %v", err)
-	}
-
-	// Capture stdout
-	oldStdout := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("failed to create pipe: %v", err)
-	}
-	os.Stdout = w
-
-	// Call ls with subdirectory argument
-	ls(subDir)
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("failed to close write pipe: %v", err)
-	}
-	os.Stdout = oldStdout
-
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(r); err != nil {
-		t.Fatalf("failed to read from pipe: %v", err)
-	}
-	output := buf.String()
+	// Change to tmpDir and call ls(subDir)
+	// This ensures that if ls() incorrectly reads the subDir instead of current directory,
+	// it will find subDirFiles instead of parentFiles
+	output := runLsInTempDir(t, tmpDir, subDir)
 
 	// Verify output contains files from the specified subdirectory
 	for _, fileName := range subDirFiles {
